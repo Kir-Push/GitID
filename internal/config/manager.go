@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/yourusername/gitid/internal/identity"
+	"github.com/Kir-Push/GitID/internal/identity"
 	"gopkg.in/ini.v1"
 )
 

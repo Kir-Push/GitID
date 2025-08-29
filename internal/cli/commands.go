@@ -8,8 +8,47 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/yourusername/gitid/internal/identity"
 )
+
+// expandPath expands a path that starts with ~/ to the user's home directory.
+func expandPath(path string) (string, error) {
+	if !strings.HasPrefix(path, "~/") {
+		return path, nil
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(homeDir, path[2:]), nil
+}
+
+// findMatchingIdentities finds identities that match a given path.
+func findMatchingIdentities(testPath string) []string {
+	identities := identityManager.ListIdentities()
+	var matches []string
+
+	for name, ident := range identities {
+		for _, path := range ident.Paths {
+			if testPath == path || strings.HasPrefix(testPath, path+string(os.PathSeparator)) {
+				matches = append(matches, fmt.Sprintf("%s (%s)", name, ident.Email))
+			}
+		}
+	}
+	return matches
+}
+
+func printMatchesForPath(path string) {
+	matches := findMatchingIdentities(path)
+
+	if len(matches) == 0 {
+		color.Yellow("⚠️  No identity would apply to this path")
+	} else {
+		color.Green("✅ Matching identities:")
+		for _, match := range matches {
+			fmt.Printf("  - %s\n", match)
+		}
+	}
+}
 
 // initCmd initializes GitID
 var initCmd = &cobra.Command{
@@ -40,29 +79,17 @@ var addCmd = &cobra.Command{
 		}
 
 		// Expand ~ in path
-		if strings.HasPrefix(path, "~/") {
-			homeDir, _ := os.UserHomeDir()
-			path = filepath.Join(homeDir, path[2:])
-		}
-
-		// Add identity to manager
-		err := identityManager.AddIdentity(name, gitName, email, []string{path})
+		expandedPath, err := expandPath(path)
 		if err != nil {
-			color.Red("❌ Failed to add identity: %v", err)
+			color.Red("❌ Error expanding path: %v", err)
 			os.Exit(1)
 		}
+		path = expandedPath
 
-		// Create identity struct and add to config
-		ident := &identity.Identity{
-			Name:    name,
-			GitName: gitName,
-			Email:   email,
-			Paths:   []string{path},
-		}
-
-		err = configManager.AddIncludeIf(ident)
+		// Add identity (this handles both in-memory and config operations)
+		err = identityManager.AddIdentity(name, gitName, email, []string{path})
 		if err != nil {
-			color.Red("❌ Failed to update git config: %v", err)
+			color.Red("❌ Failed to add identity: %v", err)
 			os.Exit(1)
 		}
 
@@ -111,9 +138,7 @@ var statusCmd = &cobra.Command{
 
 		color.Blue("📍 Current directory: %s", pwd)
 
-		// For MVP, we'll just show that GitID is ready
-		// In a full implementation, we'd check git config in current dir
-		color.Green("🚀 GitID is active - identities will be applied automatically")
+		printMatchesForPath(pwd)
 	},
 }
 
@@ -127,33 +152,16 @@ var testCmd = &cobra.Command{
 		testPath := args[0]
 
 		// Expand ~ in path
-		if strings.HasPrefix(testPath, "~/") {
-			homeDir, _ := os.UserHomeDir()
-			testPath = filepath.Join(homeDir, testPath[2:])
+		expandedPath, err := expandPath(testPath)
+		if err != nil {
+			color.Red("❌ Error expanding path: %v", err)
+			os.Exit(1)
 		}
+		testPath = expandedPath
 
 		color.Blue("🔍 Testing path: %s", testPath)
 
-		// For MVP, we'll check which configured paths would match
-		identities := identityManager.ListIdentities()
-		var matches []string
-
-		for name, ident := range identities {
-			for _, path := range ident.Paths {
-				if strings.HasPrefix(testPath, path) {
-					matches = append(matches, fmt.Sprintf("%s (%s)", name, ident.Email))
-				}
-			}
-		}
-
-		if len(matches) == 0 {
-			color.Yellow("⚠️  No identity would apply to this path")
-		} else {
-			color.Green("✅ Matching identities:")
-			for _, match := range matches {
-				fmt.Printf("  - %s\n", match)
-			}
-		}
+		printMatchesForPath(testPath)
 	},
 }
 
@@ -166,15 +174,8 @@ var removeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
 
-		// Remove from config manager
-		err := configManager.RemoveIncludeIf(name)
-		if err != nil {
-			color.Red("❌ Failed to remove from git config: %v", err)
-			os.Exit(1)
-		}
-
-		// Remove from identity manager
-		err = identityManager.RemoveIdentity(name)
+		// Remove identity (this handles both config and in-memory removal)
+		err := identityManager.RemoveIdentity(name)
 		if err != nil {
 			color.Red("❌ Failed to remove identity: %v", err)
 			os.Exit(1)

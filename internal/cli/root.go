@@ -3,10 +3,10 @@ package cli
 import (
 	"os"
 
+	"github.com/Kir-Push/GitID/internal/config"
+	"github.com/Kir-Push/GitID/internal/identity"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/yourusername/gitid/internal/config"
-	"github.com/yourusername/gitid/internal/identity"
 )
 
 var (
@@ -46,13 +46,15 @@ func init() {
 		os.Exit(1)
 	}
 
-	identityManager = identity.NewManager()
+	identityManager = identity.NewManager(configManager)
 
 	// Load existing identities from git config
-	if existingIdentities, err := configManager.LoadExistingIdentities(); err == nil {
-		for _, ident := range existingIdentities {
-			identityManager.AddIdentity(ident.Name, ident.GitName, ident.Email, ident.Paths)
-		}
+	if existingIdentities, err := configManager.LoadExistingIdentities(); err != nil {
+		// Warn about errors but don't exit, so the app remains usable
+		// to create a new config or add identities.
+		color.Yellow("Warning: could not load existing identities: %v", err)
+	} else if len(existingIdentities) > 0 {
+		identityManager.LoadIdentities(existingIdentities)
 	}
 
 	// Add commands

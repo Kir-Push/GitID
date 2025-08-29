@@ -1,6 +1,8 @@
 package identity
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Identity represents a git identity configuration
 type Identity struct {
@@ -10,16 +12,31 @@ type Identity struct {
 	Paths   []string // Directory paths
 }
 
+// ConfigManager interface to avoid circular imports
+type ConfigManager interface {
+	AddIncludeIf(identity *Identity) error
+	RemoveIncludeIf(name string) error
+}
+
 // Manager handles identity operations
 type Manager struct {
-	identities map[string]*Identity
+	identities    map[string]*Identity
+	configManager ConfigManager
 }
 
 // NewManager creates a new identity manager
-func NewManager() *Manager {
+func NewManager(configManager ConfigManager) *Manager {
 	return &Manager{
-		identities: make(map[string]*Identity),
+		identities:    make(map[string]*Identity),
+		configManager: configManager,
 	}
+}
+
+// LoadIdentities populates the manager with existing identities from a map.
+// This is used for initializing the manager at startup from loaded config files
+// and does not trigger any write operations.
+func (m *Manager) LoadIdentities(identities map[string]*Identity) {
+	m.identities = identities
 }
 
 // AddIdentity adds a new identity
@@ -28,12 +45,24 @@ func (m *Manager) AddIdentity(name, gitName, email string, paths []string) error
 		return fmt.Errorf("identity '%s' already exists", name)
 	}
 
-	m.identities[name] = &Identity{
+	// Create the identity
+	identity := &Identity{
 		Name:    name,
 		GitName: gitName,
 		Email:   email,
 		Paths:   paths,
 	}
+
+	// Add to config manager first (this handles Git config persistence)
+	if m.configManager != nil {
+		err := m.configManager.AddIncludeIf(identity)
+		if err != nil {
+			return fmt.Errorf("failed to update git config: %w", err)
+		}
+	}
+
+	// Add to in-memory storage only after successful config update
+	m.identities[name] = identity
 
 	return nil
 }
@@ -44,6 +73,15 @@ func (m *Manager) RemoveIdentity(name string) error {
 		return fmt.Errorf("identity '%s' not found", name)
 	}
 
+	// Remove from config manager first (this handles Git config cleanup)
+	if m.configManager != nil {
+		err := m.configManager.RemoveIncludeIf(name)
+		if err != nil {
+			return fmt.Errorf("failed to remove from git config: %w", err)
+		}
+	}
+
+	// Remove from in-memory storage only after successful config removal
 	delete(m.identities, name)
 	return nil
 }

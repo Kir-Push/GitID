@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/yourusername/gitid/internal/cli"
+	"github.com/Kir-Push/GitID/internal/cli" //github.com/Kir-Push/GitID
 )
 
 func main() {
