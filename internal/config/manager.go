@@ -238,16 +238,24 @@ func (c *ConfigManager) removeIncludeIfEntry(name string) error {
 
 	// Filter out entries for this identity
 	var newEntries []string
-	identityPath := fmt.Sprintf(".gitconfig-gitid-%s", name)
+	identityFileName := fmt.Sprintf(".gitconfig-gitid-%s", name)
+	expectedPathSuffix := filepath.Join(c.identityDir, identityFileName)
 
 	i := startIndex + 1
 	for i < endIndex {
 		line := content[i]
 		// Check if this is a path line for the identity we're removing
-		if strings.Contains(line, identityPath) {
-			// Skip this path line and the preceding includeIf line
-			if i > startIndex+1 {
-				newEntries = newEntries[:len(newEntries)-1] // Remove the includeIf line
+		// Use exact matching to avoid removing similar named identities
+		trimmedLine := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmedLine, "path = ") {
+			pathValue := strings.TrimSpace(trimmedLine[7:]) // Remove "path = " prefix
+			if pathValue == expectedPathSuffix || strings.HasSuffix(pathValue, string(os.PathSeparator)+identityFileName) {
+				// Skip this path line and the preceding includeIf line
+				if i > startIndex+1 {
+					newEntries = newEntries[:len(newEntries)-1] // Remove the includeIf line
+				}
+			} else {
+				newEntries = append(newEntries, line)
 			}
 		} else {
 			newEntries = append(newEntries, line)

@@ -58,7 +58,6 @@ func init() {
 	}
 
 	// Add commands
-	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(statusCmd)
