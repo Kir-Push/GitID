@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Kir-Push/GitID/internal/identity"
+	"github.com/fatih/color"
 	"gopkg.in/ini.v1"
 )
 
@@ -77,12 +78,19 @@ func (c *ConfigManager) LoadExistingIdentities() (map[string]*identity.Identity,
 			if len(parts) > 1 {
 				currentIdentity = strings.TrimSpace(parts[1])
 
-				// Load identity details from identity file
-				if ident, err := c.loadIdentityFile(currentIdentity); err == nil {
+				if existingIdentity, ok := identities[currentIdentity]; ok {
+					existingIdentity.Paths = append(existingIdentity.Paths, currentPaths...)
+				} else {
+					// Load identity details from identity file
+					ident, err := c.loadIdentityFile(currentIdentity)
+					if err != nil {
+						color.Yellow("⚠️  Warning: could not load identity '%s': %v", currentIdentity, err)
+						continue
+					}
 					ident.Paths = currentPaths
 					identities[currentIdentity] = ident
-				}
 
+				}
 				// Reset for next identity
 				currentPaths = []string{}
 			}

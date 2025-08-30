@@ -71,23 +71,26 @@ var addCmd = &cobra.Command{
 		name := args[0]
 		gitName, _ := cmd.Flags().GetString("name")
 		email, _ := cmd.Flags().GetString("email")
-		path, _ := cmd.Flags().GetString("path")
+		paths, _ := cmd.Flags().GetStringArray("path")
+		expandedPaths := paths
 
-		if gitName == "" || email == "" || path == "" {
+		if gitName == "" || email == "" || len(paths) == 0 {
 			color.Red("❌ Error: --name, --email, and --path are required")
 			os.Exit(1)
 		}
 
-		// Expand ~ in path
-		expandedPath, err := expandPath(path)
-		if err != nil {
-			color.Red("❌ Error expanding path: %v", err)
-			os.Exit(1)
+		for i, path := range paths {
+			// Expand ~ in path
+			expandedPath, err := expandPath(path)
+			if err != nil {
+				color.Red("❌ Error expanding path: %v", err)
+				os.Exit(1)
+			}
+			expandedPaths[i] = expandedPath
 		}
-		path = expandedPath
 
 		// Add identity (this handles both in-memory and config operations)
-		err = identityManager.AddIdentity(name, gitName, email, []string{path})
+		err := identityManager.AddIdentity(name, gitName, email, expandedPaths)
 		if err != nil {
 			color.Red("❌ Failed to add identity: %v", err)
 			os.Exit(1)
@@ -96,7 +99,7 @@ var addCmd = &cobra.Command{
 		color.Green("✅ Added identity '%s'", name)
 		fmt.Printf("   Name: %s\n", gitName)
 		fmt.Printf("   Email: %s\n", email)
-		fmt.Printf("   Path: %s\n", path)
+		fmt.Printf("   Paths: %s\n", expandedPaths)
 	},
 }
 
@@ -189,5 +192,5 @@ func init() {
 	// Add flags for add command
 	addCmd.Flags().StringP("name", "n", "", "Git user name")
 	addCmd.Flags().StringP("email", "e", "", "Git user email")
-	addCmd.Flags().StringP("path", "p", "", "Directory path for this identity")
+	addCmd.Flags().StringArrayP("path", "p", []string{}, "Directory path for this identity")
 }
