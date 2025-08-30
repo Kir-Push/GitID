@@ -50,17 +50,6 @@ func printMatchesForPath(path string) {
 	}
 }
 
-// initCmd initializes GitID
-var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize GitID configuration",
-	Long:  "Initialize GitID by creating the necessary configuration structure.",
-	Run: func(cmd *cobra.Command, args []string) {
-		color.Green("✅ GitID initialized successfully!")
-		fmt.Println("You can now add identities using 'gitid add'")
-	},
-}
-
 // addCmd adds a new identity
 var addCmd = &cobra.Command{
 	Use:   "add [name]",
